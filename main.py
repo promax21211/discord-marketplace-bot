@@ -118,8 +118,8 @@ async def deliver(ctx, oid: int, *, content: str):
     else:
         await ctx.send("❌ Order not found.")
 
-@bot.command()
-async def help(ctx):
+@bot.command(name="commands")
+async def commands_list(ctx):
     cmds = {
         "Clients": "-stock, -buy <item>, -order <item> <desc>, -paid, -cancel, -orderlist",
         "Staff": "-deliver <id> <data> (Whitelist Only)"
