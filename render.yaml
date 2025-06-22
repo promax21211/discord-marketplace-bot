@@ -1,0 +1,7 @@
+
+services:
+  - type: web
+    name: discord-marketplace-bot
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
