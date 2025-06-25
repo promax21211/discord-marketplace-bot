@@ -388,6 +388,15 @@ async def failed(ctx):
 
 @bot.command()
 async def orphaned(ctx):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+
+    payments = get_unmatched_payments()
+    if not payments:
+        return await ctx.send("✅ No unmatched payments found.")
+
+    desc = "\n".join([f"{p['user']} | {p['amount']}$ {p['coin']}" for p in payments])
+    await ctx.send(embed=make_embed("💸 Orphaned Payments", desc))
 
 from db_utils import (
     add_hidden_stock, add_item_to_hidden,
