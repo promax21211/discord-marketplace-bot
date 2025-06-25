@@ -389,10 +389,113 @@ async def failed(ctx):
 
 @bot.command()
 async def orphaned(ctx):
+
+from db_utils import (
+    add_hidden_stock, add_item_to_hidden,
+    get_hidden_stock, get_hidden_item,
+    get_stock_item, create_order, update_order,
+    cancel_order_by_id, get_order_by_id, delete_failed_dm
+)
+
+from bson import ObjectId
+
+# ✅ Create hidden stock category
+@bot.command()
+async def addhiddenstock(ctx, name: str, price: float):
     if not is_whitelisted(ctx.author):
         return await ctx.send("❌ Not authorized.")
-    payments = get_unmatched_payments()
-    if not payments:
-        return await ctx.send("✅ No unmatched payments.")
-    for p in payments:
-        await ctx.send(f"❔ Payment from <@{p['user']}>: {p['amount']} {p['coin']} (Not matched)")
+    add_hidden_stock(name, price)
+    await ctx.send(f"🔒 Hidden stock `{name}` created with price ${price}.")
+
+# ✅ Add item to hidden stock
+@bot.command()
+async def additem(ctx, name: str, *, data: str):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    add_item_to_hidden(name, data)
+    await ctx.send(f"📦 Added item to hidden stock `{name}`.")
+
+# ✅ List hidden stock
+@bot.command()
+async def listhidden(ctx):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    hidden = get_hidden_stock()
+    if not hidden:
+        return await ctx.send("ℹ️ No hidden stock found.")
+    desc = "\n".join([f"🔒 {h['name']} — ${h['price']} — {len(h['items'])} items" for h in hidden])
+    await ctx.send(embed=make_embed("🔐 Hidden Stock", desc))
+
+# ✅ Place a custom order
+@bot.command()
+async def order(ctx, item: str, *, desc: str):
+    stock = get_stock_item(item)
+    if not stock or stock["type"] not in ["order", "custom", "hidden"]:
+        return await ctx.send("❌ Invalid custom item.")
+
+    order_data = {
+        "user": ctx.author.id,
+        "item": item,
+        "desc": desc,
+        "status": "pending",
+        "paid": False,
+        "type": stock["type"]
+    }
+    oid = create_order(order_data)
+    await ctx.send(embed=make_embed("📦 Order Received", f"`{desc}`\n\nOrder ID: `{oid}`. Awaiting staff review."))
+    await log_event(f"📝 New custom order #{oid} from {ctx.author}: {desc}")
+
+# ✅ Accept order
+@bot.command()
+async def acceptorder(ctx, oid: str, price: float):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    update_order(ObjectId(oid), {"price": price, "status": "accepted"})
+    await ctx.send(f"✅ Order #{oid} accepted at ${price}.")
+    order = get_order_by_id(ObjectId(oid))
+    user = await bot.fetch_user(order["user"])
+    await user.send(
+        f"📝 Your custom order #{oid} has been accepted.\n"
+        f"Price: **${price}**\nPlease pay via Tip.cc:\n"
+        f"```$tip @YourBot {price}$ sol```\nThen run `-paid`.")
+
+# ✅ Reject order
+@bot.command()
+async def rejectorder(ctx, oid: str):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    order = get_order_by_id(ObjectId(oid))
+    if not order:
+        return await ctx.send("❌ Order not found.")
+    cancel_order_by_id(ObjectId(oid))
+    await ctx.send(f"❌ Order #{oid} rejected and removed.")
+    try:
+        user = await bot.fetch_user(order["user"])
+        await user.send("❌ Your custom order has been rejected.")
+    except:
+        await ctx.send("⚠️ Could not DM user.")
+
+# ✅ Retry delivery if DM failed
+@bot.command()
+async def claim(ctx, oid: str):
+    order = get_order_by_id(ObjectId(oid))
+    if not order or order["user"] != ctx.author.id or not order["paid"]:
+        return await ctx.send("❌ Invalid claim.")
+    try:
+        user = await bot.fetch_user(order["user"])
+        await user.send(f"📦 Retry delivery for order #{oid}: {order.get('content', 'No data')}")
+        delete_failed_dm(ObjectId(oid))
+        await ctx.send("✅ Delivery retried.")
+    except:
+        await ctx.send("⚠️ Still unable to DM.")
+
+# ✅ Clear stock manually
+@bot.command()
+async def clearstock(ctx, item: str):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    clear_stock_item(item)
+    await ctx.send(f"🧹 Cleared stock of {item}.")
+
+# ✅ Final step to start the bot
+bot.run(TOKEN)
