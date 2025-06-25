@@ -243,13 +243,6 @@ async def setprefix(ctx, prefix: str):
 # -----------------------------
 
 @bot.command()
-async def creatediscount(ctx, code: str, percent: int, uses: int):
-    if not is_whitelisted(ctx.author):
-        return await ctx.send("❌ Not authorized.")
-    create_discount(code, percent, uses)
-    await ctx.send(f"✅ Discount `{code}` created: {percent}% off, {uses} uses.")
-
-@bot.command()
 async def usediscount(ctx, code: str):
     disc = get_discount(code)
     if not disc or disc["uses"] <= 0:
