@@ -196,7 +196,7 @@ async def commands_list(ctx):
     for k, v in cmds.items():
         embed.add_field(name=k, value=v, inline=False)
     await ctx.send(embed=embed)
-  @bot.command()
+@bot.command()
 async def bal(ctx):
     if not is_whitelisted(ctx.author):
         return await ctx.send("❌ Not authorized.")
