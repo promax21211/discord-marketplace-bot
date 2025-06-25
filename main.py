@@ -56,8 +56,7 @@ async def on_ready():
     global log_channel_id
     print(f"✅ Logged in as {bot.user}")
     log_channel_id = get_config("log_channel")
-  from bson import ObjectId
-
+    from bson import ObjectId
 @bot.command()
 async def stock(ctx, item=None):
     if item:
