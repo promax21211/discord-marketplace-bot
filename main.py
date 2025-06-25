@@ -308,3 +308,91 @@ async def sendlogs(ctx):
     for log in logs[-10:]:
         msg += f"📝 {log['log']}\n"
     await ctx.send(embed=make_embed("🪵 Recent Logs", msg or "No logs yet."))
+    from db_utils import (
+    create_discount, get_discount, use_discount,
+    set_reward_trigger, get_reward_trigger,
+    get_user_order_count,
+    log_event_to_db, get_logs,
+    get_failed_deliveries, delete_failed_dm,
+    log_payment, get_unmatched_payments,
+)
+
+@bot.command()
+async def creatediscount(ctx, code: str, percent: int, uses: int):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    create_discount(code, percent, uses)
+    await ctx.send(f"🎁 Created discount `{code}` for {percent}% off, usable {uses} times.")
+
+@bot.command()
+async def usediscount(ctx, code: str):
+    d = get_discount(code)
+    if not d or d["uses"] <= 0:
+        return await ctx.send("❌ Invalid or expired discount code.")
+    use_discount(code)
+    await ctx.send(f"✅ Discount `{code}` used. {d['uses'] - 1} uses left.")
+
+@bot.command()
+async def setrewardtrigger(ctx, orders: int, percent: int, uses: int):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    set_reward_trigger(orders, percent, uses)
+    await ctx.send(f"🎯 Auto-reward set: {percent}% off after {orders} orders, usable {uses} times.")
+
+@bot.command()
+async def listrewards(ctx):
+    trigger = get_reward_trigger()
+    if not trigger:
+        return await ctx.send("❌ No rewards configured.")
+    await ctx.send(f"🎁 Reward: {trigger['percent']}% after {trigger['orders']} orders, {trigger['uses']} uses.")
+
+@bot.command()
+async def rewardstatus(ctx, user: discord.User = None):
+    user = user or ctx.author
+    count = get_user_order_count(user.id)
+    trigger = get_reward_trigger()
+    if not trigger:
+        return await ctx.send("❌ No reward system.")
+    needed = trigger["orders"]
+    await ctx.send(f"🎯 {user.mention} has {count} orders. {needed - count} left to get {trigger['percent']}% off.")
+
+# Forward logs
+@bot.command()
+async def forwardim(ctx, type: str):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    valid_types = ["order", "report", "delivery"]
+    if type not in valid_types:
+        return await ctx.send("❌ Invalid type. Choose from: " + ", ".join(valid_types))
+    set_config(f"forward_{type}", ctx.channel.id)
+    await ctx.send(f"📤 Now forwarding `{type}` updates to {ctx.channel.mention}.")
+
+@bot.command()
+async def sendlogs(ctx):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    logs = get_logs()
+    if not logs:
+        return await ctx.send("📭 No logs found.")
+    for l in logs[-10:]:  # Send latest 10 logs
+        await ctx.send(f"📝 {l['log']}")
+
+@bot.command()
+async def failed(ctx):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    failures = get_failed_deliveries()
+    if not failures:
+        return await ctx.send("✅ No failed DMs.")
+    for f in failures:
+        await ctx.send(f"❗ Failed DM for order {f['order']} to user <@{f['user']}>")
+
+@bot.command()
+async def orphaned(ctx):
+    if not is_whitelisted(ctx.author):
+        return await ctx.send("❌ Not authorized.")
+    payments = get_unmatched_payments()
+    if not payments:
+        return await ctx.send("✅ No unmatched payments.")
+    for p in payments:
+        await ctx.send(f"❔ Payment from <@{p['user']}>: {p['amount']} {p['coin']} (Not matched)")
