@@ -96,23 +96,6 @@ async def buy(ctx, item: str, qty: int = 1):
     await log_event(f"🛒 New instant order #{oid} by {ctx.author} | {qty}x {item}")
 
 
-@bot.command()
-async def order(ctx, item: str, *, desc: str):
-    stock = get_stock_item(item)
-    if not stock or stock["type"] not in ["order", "custom", "hidden"]:
-        return await ctx.send("❌ Invalid custom/hidden item.")
-    order = {
-        "user": ctx.author.id,
-        "item": item,
-        "desc": desc,
-        "paid": False,
-        "type": "custom"
-    }
-    oid = create_order(order)
-    embed = make_embed("📦 Custom Order Logged", f"Item: `{item}`\nDescription: `{desc}`\nID: `{oid}`\nUse `-paid` after payment.")
-    await ctx.send(embed=embed)
-    await log_event(f"📝 Custom order #{oid} from {ctx.author}: {desc}")
-
 
 @bot.command()
 async def paid(ctx):
@@ -159,17 +142,6 @@ async def orderlist(ctx):
     await ctx.send(embed=make_embed("📜 Your Orders", desc))
 
 
-@bot.command()
-async def claim(ctx, oid):
-    order = get_order_by_id(ObjectId(oid))
-    if not order or order["user"] != ctx.author.id:
-        return await ctx.send("❌ Invalid order ID.")
-    try:
-        await ctx.author.send(f"📦 Resent delivery for order #{oid}: {order.get('item')}")
-        delete_failed_dm(ObjectId(oid))
-        await ctx.send("✅ Delivery retried in DM.")
-    except:
-        await ctx.send("⚠️ DM failed again. Check your privacy settings.")
 
 
 @bot.command()
@@ -285,30 +257,6 @@ async def rewardstatus(ctx, member: discord.Member = None):
 # 🪵 LOGGING COMMANDS
 # -----------------------------
 
-@bot.command()
-async def forwardim(ctx, type: str):
-    if not is_whitelisted(ctx.author):
-        return await ctx.send("❌ Not authorized.")
-    set_config(f"forward_{type}", ctx.channel.id)
-    await ctx.send(f"✅ `{type}` messages will now be forwarded to {ctx.channel.mention}")
-
-@bot.command()
-async def sendlogs(ctx):
-    if not is_whitelisted(ctx.author):
-        return await ctx.send("❌ Not authorized.")
-    logs = get_logs()
-    msg = ""
-    for log in logs[-10:]:
-        msg += f"📝 {log['log']}\n"
-    await ctx.send(embed=make_embed("🪵 Recent Logs", msg or "No logs yet."))
-    from db_utils import (
-    create_discount, get_discount, use_discount,
-    set_reward_trigger, get_reward_trigger,
-    get_user_order_count,
-    log_event_to_db, get_logs,
-    get_failed_deliveries, delete_failed_dm,
-    log_payment, get_unmatched_payments,
-)
 
 @bot.command()
 async def creatediscount(ctx, code: str, percent: int, uses: int):
@@ -414,7 +362,7 @@ async def order(ctx, item: str, *, desc: str):
     oid = create_order(order_data)
     await ctx.send(embed=make_embed("📦 Order Received", f"`{desc}`\n\nOrder ID: `{oid}`. Awaiting staff review."))
     await log_event(f"📝 New custom order #{oid} from {ctx.author}: {desc}")
-
+    
 # ✅ Accept order
 @bot.command()
 async def acceptorder(ctx, oid: str, price: float):
